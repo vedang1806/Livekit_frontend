@@ -1,29 +1,37 @@
 /**
  * EndedScreen.jsx
  * Shown after the session ends.
- * Displays session summary, fetches presigned S3 URL, and provides download link.
+ * Displays session summary, presigned S3 URL, and participant audio recordings.
  */
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-export default function EndedScreen({ sessionId, onReset, fetchRecordingUrl }) {
-  const [recordingUrl, setRecordingUrl] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function EndedScreen({ sessionId, onReset, recordingUrl, participantRecordings, fetchRecordingUrl }) {
+  const [displayUrl, setDisplayUrl] = useState(recordingUrl);
+  const [loading, setLoading] = useState(!recordingUrl);
   const [error, setError] = useState(null);
 
+  // If recordingUrl not immediately available, wait for it (via fetchRecordingUrl fallback)
   useEffect(() => {
-    if (fetchRecordingUrl && sessionId) {
+    if (!displayUrl && fetchRecordingUrl && sessionId) {
       (async () => {
-        const data = await fetchRecordingUrl(86400); // 24 hours expiry
-        if (data?.url) {
-          setRecordingUrl(data.url);
-        } else {
-          setError('Could not fetch recording URL');
+        try {
+          const data = await fetchRecordingUrl(86400);
+          if (data?.url) {
+            setDisplayUrl(data.url);
+          } else {
+            setError('Could not fetch recording URL');
+          }
+        } catch (e) {
+          setError(`Error: ${e.message}`);
+        } finally {
+          setLoading(false);
         }
-        setLoading(false);
       })();
+    } else if (displayUrl) {
+      setLoading(false);
     }
-  }, [fetchRecordingUrl, sessionId]);
+  }, [displayUrl, fetchRecordingUrl, sessionId]);
 
   return (
     <div style={styles.root}>
@@ -41,12 +49,12 @@ export default function EndedScreen({ sessionId, onReset, fetchRecordingUrl }) {
         <div style={styles.detail}>
           <span style={styles.detailLabel}>RECORDING</span>
           {loading ? (
-            <span style={styles.detailValue}>Fetching presigned URL...</span>
+            <span style={styles.detailValue}>⏳ Waiting for recording to be ready...</span>
           ) : error ? (
             <span style={{ ...styles.detailValue, color: 'var(--danger)' }}>{error}</span>
-          ) : recordingUrl ? (
+          ) : displayUrl ? (
             <a
-              href={recordingUrl}
+              href={displayUrl}
               target="_blank"
               rel="noopener noreferrer"
               style={styles.recordingLink}
@@ -59,6 +67,33 @@ export default function EndedScreen({ sessionId, onReset, fetchRecordingUrl }) {
           )}
         </div>
 
+        {participantRecordings && participantRecordings.length > 0 && (
+          <div style={styles.participantSection}>
+            <span style={styles.detailLabel}>PARTICIPANT RECORDINGS</span>
+            <div style={styles.participantList}>
+              {participantRecordings.map((recording, idx) => {
+                const roleColor = getRoleColor(recording.role);
+                return (
+                  <div key={idx} style={{ ...styles.participantItem, borderLeftColor: roleColor }}>
+                    <div style={styles.participantHeader}>
+                      <span style={{ ...styles.roleBadge, backgroundColor: roleColor }}>
+                        {recording.role?.toUpperCase() || 'PARTICIPANT'}
+                      </span>
+                    </div>
+                    <audio 
+                      controls 
+                      style={styles.audioPlayer}
+                      src={recording.url}
+                    >
+                      Your browser does not support the audio element.
+                    </audio>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <p style={styles.note}>
           The MP4 is available for 24 hours. Layer 2 (STT pipeline) can be triggered
           against the OGG per-participant tracks from S3.
@@ -70,6 +105,15 @@ export default function EndedScreen({ sessionId, onReset, fetchRecordingUrl }) {
       </div>
     </div>
   );
+}
+
+function getRoleColor(role) {
+  const roleMap = {
+    'doctor': 'var(--doctor)',
+    'patient': 'var(--patient)',
+    'interpreter': 'var(--interpreter)',
+  };
+  return roleMap[role?.toLowerCase()] || 'var(--border)';
 }
 
 const styles = {
@@ -150,6 +194,47 @@ const styles = {
     wordBreak: 'break-all',
     cursor: 'pointer',
     transition: 'opacity 0.15s',
+  },
+  participantSection: {
+    width: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    padding: '10px 14px',
+    background: 'var(--surface-2)',
+    border: '1px solid var(--border)',
+    borderRadius: 8,
+  },
+  participantList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+  },
+  participantItem: {
+    borderLeft: '3px solid',
+    paddingLeft: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+  },
+  participantHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  roleBadge: {
+    fontFamily: 'var(--font-display)',
+    fontSize: 9,
+    fontWeight: 700,
+    color: '#000',
+    padding: '2px 6px',
+    borderRadius: 4,
+    letterSpacing: '0.08em',
+  },
+  audioPlayer: {
+    width: '100%',
+    height: 24,
+    fontSize: 11,
   },
   note: {
     fontFamily: 'var(--font-body)',

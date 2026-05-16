@@ -7,7 +7,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { createRoom, getToken, startEgress, stopEgress, getParticipants, getRecordingUrl } from '../api/backend';
+import { createRoom, getToken, startEgress, stopEgress, getParticipants, getRecordingUrl, getEgressStatus, listenForEgressEnded, getParticipantRecordings } from '../api/backend';
 
 export const SESSION_STATE = {
   IDLE:     'idle',
@@ -27,9 +27,12 @@ export function useSession() {
   const [role,        setRole]       = useState('doctor');
   const [egressId,    setEgressId]   = useState('');
   const [recording,   setRecording]  = useState(false);
+  const [recordingUrl, setRecordingUrl] = useState(null);
+  const [participantRecordings, setParticipantRecordings] = useState([]);
   const [participants, setParticipants] = useState([]);
 
   const pollRef = useRef(null);
+  const egressListenerRef = useRef(null);
 
   /** Generate a session_id from role + timestamp. */
   function makeSessionId() {
@@ -93,7 +96,7 @@ export function useSession() {
     }
   }, [sessionId, recording]);
 
-  /** Stop egress recording. */
+  /** Stop egress recording and listen for completion event. */
   const stopRecording = useCallback(async () => {
     if (!egressId) {
       console.log(`[Session] STOP RECORDING skipped: no egressId`);
@@ -104,7 +107,36 @@ export function useSession() {
       await stopEgress(egressId, sessionId);
       setRecording(false);
       setEgressId('');
-      console.log(`[Session] RECORDING stopped`);
+      console.log(`[Session] RECORDING stopped. Listening for egress completion event...`);
+
+      // Listen for egress_ended event
+      if (egressListenerRef.current) {
+        egressListenerRef.current(); // Unsubscribe previous listener
+      }
+
+      egressListenerRef.current = listenForEgressEnded(sessionId, async (egressData) => {
+        console.log(`[Session] Egress completion event received. Fetching presigned URL and participant recordings...`);
+        try {
+          const urlData = await getRecordingUrl(sessionId, 86400);
+          setRecordingUrl(urlData.url);
+          console.log(`[Session] Recording URL ready:`, urlData.url);
+          
+          // Fetch participant recordings
+          try {
+            const recData = await getParticipantRecordings(sessionId);
+            setParticipantRecordings(recData.recordings || []);
+            console.log(`[Session] Participant recordings ready:`, recData.recordings);
+            recData.recordings?.forEach(rec => {
+              console.log(`  ${rec.role}: ${rec.url}`);
+            });
+          } catch (e) {
+            console.warn(`[Session] Failed to fetch participant recordings (optional):`, e.message);
+          }
+        } catch (e) {
+          console.error(`[Session] Failed to fetch recording URL:`, e.message);
+          setError(`Failed to get recording URL: ${e.message}`);
+        }
+      });
     } catch (e) {
       // 412 = already stopped — not a real error
       console.warn(`[Session] STOP RECORDING error (may be ok):`, e.message);
@@ -131,6 +163,11 @@ export function useSession() {
   /** Disconnect and clean up. */
   const leave = useCallback(async () => {
     stopParticipantPoll();
+    // Clean up egress listener
+    if (egressListenerRef.current) {
+      egressListenerRef.current();
+      egressListenerRef.current = null;
+    }
     if (recording) await stopRecording();
     setState(SESSION_STATE.ENDED);
     setToken('');
@@ -139,28 +176,58 @@ export function useSession() {
     setRecording(false);
   }, [recording, stopRecording, stopParticipantPoll]);
 
-  /** Fetch presigned S3 URL for recording. */
-  const fetchRecordingUrl = useCallback(async (expiresIn = 86400) => {
+  /** Get recording URL - returns from state if available, or polls as fallback. */
+  const fetchRecordingUrl = useCallback(async (expiresIn = 86400, maxWaitMs = 60000) => {
     if (!sessionId) {
       console.log(`[Session] FETCH RECORDING URL skipped: no sessionId`);
       return null;
     }
-    console.log(`[Session] FETCH RECORDING URL: session=${sessionId}, expiresIn=${expiresIn}`);
-    try {
-      const data = await getRecordingUrl(sessionId, expiresIn);
-      console.log(`[Session] RECORDING URL received:`, data.url);
-      return data;
-    } catch (e) {
-      console.error(`[Session] FETCH RECORDING URL failed:`, e.message);
-      setError(`Failed to get recording URL: ${e.message}`);
-      return null;
+
+    // If URL already available (egress_ended event already fired), return it
+    if (recordingUrl) {
+      console.log(`[Session] Recording URL already available`);
+      return { url: recordingUrl, session_id: sessionId, expires_in: expiresIn };
     }
-  }, [sessionId]);
+
+    console.log(`[Session] FETCH RECORDING URL: waiting for egress_ended event (max wait: ${maxWaitMs}ms)`);
+
+    // Wait for URL to be set by egress_ended event (with timeout fallback to polling)
+    const startTime = Date.now();
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(async () => {
+        if (recordingUrl) {
+          clearInterval(checkInterval);
+          console.log(`[Session] Recording URL now available`);
+          resolve({ url: recordingUrl, session_id: sessionId, expires_in: expiresIn });
+          return;
+        }
+
+        // Timeout: try polling status as fallback
+        if (Date.now() - startTime > maxWaitMs) {
+          clearInterval(checkInterval);
+          console.warn(`[Session] Egress event timeout after ${maxWaitMs}ms, falling back to status poll...`);
+
+          try {
+            const status = await getEgressStatus(sessionId);
+            if (status.status === 'ready') {
+              const data = await getRecordingUrl(sessionId, expiresIn);
+              setRecordingUrl(data.url);
+              resolve(data);
+            }
+          } catch (e) {
+            console.error(`[Session] Fallback polling failed:`, e.message);
+            resolve(null);
+          }
+          return;
+        }
+      }, 500); // Check every 500ms for state update
+    });
+  }, [sessionId, recordingUrl]);
 
   return {
     // State
     state, error, sessionId, identity, role, setRole,
-    token, wsUrl, recording, participants, egressId,
+    token, wsUrl, recording, recordingUrl, participantRecordings, participants, egressId,
     // Actions
     join, leave, startRecording, stopRecording,
     startParticipantPoll, stopParticipantPoll,

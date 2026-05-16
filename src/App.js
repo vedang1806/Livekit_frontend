@@ -17,7 +17,7 @@ export default function App() {
     state, error,
     sessionId, role, setRole,
     token, wsUrl,
-    recording,
+    recording, recordingUrl, participantRecordings,
     join, leave,
     startRecording, stopRecording,
     startParticipantPoll, stopParticipantPoll,
@@ -68,6 +68,8 @@ export default function App() {
       <EndedScreen
         sessionId={sessionId}
         onReset={() => window.location.reload()}
+        recordingUrl={recordingUrl}
+        participantRecordings={participantRecordings}
         fetchRecordingUrl={fetchRecordingUrl}
       />
     );

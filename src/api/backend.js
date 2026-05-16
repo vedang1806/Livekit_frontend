@@ -71,7 +71,55 @@ export async function getRecordingUrl(sessionId, expiresIn = 86400) {
   return request(`/egress/recording-url?session_id=${encodeURIComponent(sessionId)}&expires_in=${expiresIn}`);
 }
 
+/** Check egress recording status. */
+export async function getEgressStatus(sessionId) {
+  return request(`/egress/status?session_id=${encodeURIComponent(sessionId)}`);
+}
+
 /** List all egress jobs for a session. */
 export async function listEgress(sessionId) {
   return request(`/egress/list?session_id=${encodeURIComponent(sessionId)}`);
+}
+
+/** Get participant audio recordings for a session. */
+export async function getParticipantRecordings(sessionId) {
+  return request(`/egress/participant-recordings?session_id=${encodeURIComponent(sessionId)}`);
+}
+
+/**
+ * Listen for egress completion events via Server-Sent Events (SSE).
+ * Calls callback when egress job completes.
+ * Returns unsubscribe function.
+ */
+export function listenForEgressEnded(sessionId, onEgressEnded) {
+  const eventSource = new EventSource(`${BASE}/egress/events?session_id=${encodeURIComponent(sessionId)}`);
+
+  console.log(`[API] EventSource: Listening for egress events on session=${sessionId}`);
+
+  const handleMessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      console.log(`[API] Egress event:`, data);
+
+      if (data.status === 'ended' || data.status === 'ready') {
+        console.log(`[API] Egress job completed: ${data.status}`);
+        eventSource.close();
+        if (onEgressEnded) onEgressEnded(data);
+      }
+    } catch (e) {
+      console.error(`[API] Failed to parse egress event:`, e.message);
+    }
+  };
+
+  eventSource.addEventListener('egress_update', handleMessage);
+  eventSource.onerror = () => {
+    console.warn(`[API] EventSource error, closing listener`);
+    eventSource.close();
+  };
+
+  // Return unsubscribe function
+  return () => {
+    console.log(`[API] Stopping egress event listener`);
+    eventSource.close();
+  };
 }
