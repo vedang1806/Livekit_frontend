@@ -120,7 +120,7 @@ export function useSession() {
           const urlData = await getRecordingUrl(sessionId, 86400);
           setRecordingUrl(urlData.url);
           console.log(`[Session] Recording URL ready:`, urlData.url);
-          
+
           // Fetch participant recordings
           try {
             const recData = await getParticipantRecordings(sessionId);

@@ -80,8 +80,8 @@ export default function EndedScreen({ sessionId, onReset, recordingUrl, particip
                         {recording.role?.toUpperCase() || 'PARTICIPANT'}
                       </span>
                     </div>
-                    <audio 
-                      controls 
+                    <audio
+                      controls
                       style={styles.audioPlayer}
                       src={recording.url}
                     >
