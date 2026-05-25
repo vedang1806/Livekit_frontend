@@ -1,82 +1,26 @@
 /**
- * RoleOverlay.jsx
- * Reads all participants from LiveKit and renders a floating panel
- * showing each participant's role badge + connection status.
- *
- * Also colours the participant tiles by injecting data attributes
- * that CSS targets via attribute selectors.
+ * RoleOverlay.jsx — participant list with display names.
  */
 
 import { useParticipants } from '@livekit/components-react';
 
-const ROLE_CONFIG = {
-  doctor:      { label: 'DOCTOR',      color: 'var(--doctor)',      bg: 'var(--doctor-dim)' },
-  patient:     { label: 'PATIENT',     color: 'var(--patient)',     bg: 'var(--patient-dim)' },
-  interpreter: { label: 'INTERPRETER', color: 'var(--interpreter)', bg: 'var(--interpreter-dim)' },
-};
-
-function getRoleFromIdentity(identity = '') {
-  if (identity.startsWith('doctor'))      return 'doctor';
-  if (identity.startsWith('patient'))     return 'patient';
-  if (identity.startsWith('interpreter')) return 'interpreter';
-  return null;
+function labelFromIdentity(identity = '') {
+  const lastUnderscore = identity.lastIndexOf('_');
+  if (lastUnderscore > 0) {
+    const base = identity.slice(0, lastUnderscore).replace(/_/g, ' ');
+    if (base) return base;
+  }
+  return identity || 'Guest';
 }
 
-function RoleBadge({ identity, name }) {
-  const role   = getRoleFromIdentity(identity);
-  const config = ROLE_CONFIG[role] || { label: identity, color: 'var(--text-muted)', bg: 'var(--surface-2)' };
+function ParticipantRow({ identity, name }) {
+  const label = name || labelFromIdentity(identity);
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 10,
-      padding: '8px 12px',
-      borderRadius: 8,
-      background: 'var(--surface-2)',
-      border: `1px solid ${config.color}33`,
-    }}>
-      {/* Role dot */}
-      <span style={{
-        width: 8, height: 8,
-        borderRadius: '50%',
-        background: config.color,
-        flexShrink: 0,
-        boxShadow: `0 0 6px ${config.color}`,
-      }} />
-
-      {/* Name + role */}
-      <div>
-        <div style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 12,
-          fontWeight: 700,
-          color: config.color,
-          letterSpacing: '0.08em',
-        }}>
-          {config.label}
-        </div>
-        <div style={{
-          fontFamily: 'var(--font-body)',
-          fontSize: 11,
-          color: 'var(--text-muted)',
-          marginTop: 1,
-        }}>
-          {name || identity}
-        </div>
-      </div>
-
-      {/* Live indicator */}
-      <span style={{
-        marginLeft: 'auto',
-        fontSize: 10,
-        fontFamily: 'var(--font-display)',
-        color: 'var(--patient)',
-        letterSpacing: '0.1em',
-        fontWeight: 700,
-      }}>
-        LIVE
-      </span>
+    <div style={styles.row}>
+      <span style={styles.dot} />
+      <span style={styles.name}>{label}</span>
+      <span style={styles.live}>LIVE</span>
     </div>
   );
 }
@@ -87,32 +31,12 @@ export default function RoleOverlay() {
   if (participants.length === 0) return null;
 
   return (
-    <div style={{
-      position: 'fixed',
-      top: 16,
-      right: 16,
-      zIndex: 100,
-      width: 220,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 6,
-    }}>
-      {/* Header */}
-      <div style={{
-        fontFamily: 'var(--font-display)',
-        fontSize: 10,
-        fontWeight: 700,
-        color: 'var(--text-dim)',
-        letterSpacing: '0.14em',
-        paddingBottom: 4,
-        borderBottom: '1px solid var(--border)',
-        marginBottom: 2,
-      }}>
-        PARTICIPANTS ({participants.length})
+    <div style={styles.panel}>
+      <div style={styles.header}>
+        IN CALL ({participants.length})
       </div>
-
       {participants.map(p => (
-        <RoleBadge
+        <ParticipantRow
           key={p.identity}
           identity={p.identity}
           name={p.name}
@@ -121,3 +45,59 @@ export default function RoleOverlay() {
     </div>
   );
 }
+
+const styles = {
+  panel: {
+    position: 'fixed',
+    top: 68,
+    right: 16,
+    zIndex: 100,
+    width: 200,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 'var(--radius)',
+    padding: 12,
+  },
+  header: {
+    fontFamily: 'var(--font-display)',
+    fontSize: 10,
+    fontWeight: 700,
+    color: 'var(--text-dim)',
+    letterSpacing: '0.14em',
+    paddingBottom: 6,
+    borderBottom: '1px solid var(--border)',
+    marginBottom: 2,
+  },
+  row: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '6px 4px',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: 'var(--accent)',
+    flexShrink: 0,
+  },
+  name: {
+    fontFamily: 'var(--font-body)',
+    fontSize: 13,
+    color: 'var(--text)',
+    flex: 1,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  live: {
+    fontSize: 9,
+    fontFamily: 'var(--font-display)',
+    fontWeight: 700,
+    color: 'var(--patient)',
+    letterSpacing: '0.1em',
+  },
+};

@@ -1,7 +1,6 @@
 /**
  * App.js — root component.
  * Routes between: JoinScreen → MeetingRoom → EndedScreen
- * All session state lives in useSession() hook.
  */
 
 import { useEffect } from 'react';
@@ -10,21 +9,17 @@ import JoinScreen    from './components/JoinScreen';
 import MeetingRoom   from './components/MeetingRoom';
 import EndedScreen   from './components/EndedScreen';
 
-const DEFAULT_ROOM = process.env.REACT_APP_DEFAULT_ROOM || '';
-
 export default function App() {
   const {
     state, error,
-    sessionId, role, setRole,
+    sessionId, displayName,
     token, wsUrl,
-    recording, recordingUrl, participantRecordings,
+    recordingUrl, participantRecordings,
     join, leave,
-    startRecording, stopRecording,
     startParticipantPoll, stopParticipantPoll,
     fetchRecordingUrl,
   } = useSession();
 
-  // Start polling participants once active
   useEffect(() => {
     if (state === SESSION_STATE.ACTIVE) {
       startParticipantPoll(sessionId);
@@ -33,17 +28,12 @@ export default function App() {
     }
   }, [state, sessionId, startParticipantPoll, stopParticipantPoll]);
 
-  // ── Screens ───────────────────────────────────────────────
   if (state === SESSION_STATE.IDLE || state === SESSION_STATE.CREATING || state === SESSION_STATE.JOINING) {
     return (
       <JoinScreen
         sessionState={state}
         error={error}
-        defaultRoom={DEFAULT_ROOM}
-        onJoin={(sid, r) => {
-          setRole(r);
-          join(sid, r);
-        }}
+        onJoin={(sid, name) => join(sid, name)}
       />
     );
   }
@@ -54,10 +44,7 @@ export default function App() {
         token={token}
         wsUrl={wsUrl}
         sessionId={sessionId}
-        role={role}
-        recording={recording}
-        onStartRecording={startRecording}
-        onStopRecording={stopRecording}
+        displayName={displayName}
         onLeave={leave}
       />
     );
@@ -75,6 +62,5 @@ export default function App() {
     );
   }
 
-  // Fallback — should not normally reach here
   return null;
 }

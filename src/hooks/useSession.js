@@ -24,7 +24,8 @@ export function useSession() {
   const [token,       setToken]      = useState('');
   const [wsUrl,       setWsUrl]      = useState('');
   const [identity,    setIdentity]   = useState('');
-  const [role,        setRole]       = useState('doctor');
+  const [displayName, setDisplayName] = useState('');
+  const [role,        setRole]       = useState('patient');
   const [egressId,    setEgressId]   = useState('');
   const [recording,   setRecording]  = useState(false);
   const [recordingUrl, setRecordingUrl] = useState(null);
@@ -39,20 +40,28 @@ export function useSession() {
     return `sess_${Date.now().toString(36)}`;
   }
 
+  function slugIdentity(name) {
+    const base = name.trim().replace(/\s+/g, '_').replace(/[^\w-]/gi, '') || 'guest';
+    return `${base}_${Date.now().toString(36)}`;
+  }
+
   /** Create room + mint token + connect. */
-  const join = useCallback(async (sessionIdInput, roleInput) => {
+  const join = useCallback(async (sessionIdInput, nameInput) => {
     setError(null);
     const sid = sessionIdInput || makeSessionId();
-    const rid = roleInput || role;
-    const iid = `${rid}_${Date.now()}`;
+    const name = (nameInput || displayName || 'Guest').trim();
+    // Backend requires doctor | patient | interpreter; UI uses display name only.
+    const rid = 'patient';
+    const iid = slugIdentity(name);
 
-    console.log(`[Session] JOIN initiated: session=${sid}, role=${rid}, identity=${iid}`);
+    console.log(`[Session] JOIN initiated: session=${sid}, name=${name}, identity=${iid}`);
 
     try {
       setState(SESSION_STATE.CREATING);
       console.log(`[Session] State: CREATING`);
       setSessionId(sid);
       setIdentity(iid);
+      setDisplayName(name);
 
       // Create the room (idempotent — LiveKit returns existing room if name exists)
       console.log(`[Session] Creating room: ${sid}`);
@@ -76,7 +85,7 @@ export function useSession() {
       setError(e.message);
       setState(SESSION_STATE.IDLE);
     }
-  }, [role]);
+  }, [displayName]);
 
   /** Start composite egress recording. */
   const startRecording = useCallback(async () => {
@@ -226,7 +235,7 @@ export function useSession() {
 
   return {
     // State
-    state, error, sessionId, identity, role, setRole,
+    state, error, sessionId, identity, displayName, role,
     token, wsUrl, recording, recordingUrl, participantRecordings, participants, egressId,
     // Actions
     join, leave, startRecording, stopRecording,

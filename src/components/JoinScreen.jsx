@@ -1,104 +1,91 @@
 /**
- * JoinScreen.jsx
- * Pre-join lobby — role selector + session ID input.
+ * JoinScreen.jsx — "Who am I?" + Start / Join + shareable meet link.
  */
 
 import { useState } from 'react';
 import { SESSION_STATE } from '../hooks/useSession';
+import { getRoomFromUrl, setRoomInUrl } from '../utils/meetLink';
+import ShareMeetLink from './ShareMeetLink';
 
-const ROLES = [
-  { id: 'doctor',      label: 'Doctor',      icon: '⚕️',  desc: 'Attending physician' },
-  { id: 'patient',     label: 'Patient',     icon: '🏥',  desc: 'Receiving care' },
-  { id: 'interpreter', label: 'Interpreter', icon: '🌐',  desc: 'Language bridge' },
-];
+function makeSessionId() {
+  return `meet_${Date.now().toString(36)}`;
+}
 
-const ROLE_COLOR = {
-  doctor:      'var(--doctor)',
-  patient:     'var(--patient)',
-  interpreter: 'var(--interpreter)',
-};
+export default function JoinScreen({ sessionState, error, onJoin }) {
+  const roomFromUrl = getRoomFromUrl();
+  const isInvite = Boolean(roomFromUrl);
 
-export default function JoinScreen({ sessionState, error, onJoin, defaultRoom }) {
-  const [role,      setRole]      = useState('doctor');
-  const [sessionId, setSessionId] = useState(defaultRoom || '');
+  const [displayName, setDisplayName] = useState('');
+  const [roomId, setRoomId] = useState(roomFromUrl);
 
   const busy = sessionState === SESSION_STATE.CREATING || sessionState === SESSION_STATE.JOINING;
+  const canSubmit = displayName.trim().length > 0 && !busy;
 
-  function handleJoin() {
-    if (busy) return;
-    onJoin(sessionId.trim() || null, role);
+  function handleSubmit() {
+    if (!canSubmit) return;
+    const name = displayName.trim();
+    const sid = isInvite ? roomFromUrl : (roomId.trim() || makeSessionId());
+    if (!isInvite) {
+      setRoomId(sid);
+      setRoomInUrl(sid);
+    }
+    onJoin(sid, name);
   }
 
   return (
     <div style={styles.root}>
-      {/* Background grid */}
       <div style={styles.grid} aria-hidden />
 
       <div style={styles.card}>
-        {/* Header */}
         <div style={styles.header}>
-          <span style={styles.logo}>Interpreter<span style={styles.logoAccent}>IQ</span></span>
-          <p style={styles.tagline}>Medical interpretation — secure, recorded, compliant</p>
+          <span style={styles.logo}>Meet</span>
+          <p style={styles.tagline}>
+            {isInvite ? 'You were invited to a meeting' : 'Start a meeting and invite others'}
+          </p>
         </div>
 
-        {/* Session ID */}
         <div style={styles.field}>
-          <label style={styles.label}>SESSION ID</label>
+          <label style={styles.label} htmlFor="display-name">WHO AM I?</label>
           <input
+            id="display-name"
             style={styles.input}
-            placeholder="auto-generated if empty"
-            value={sessionId}
-            onChange={e => setSessionId(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleJoin()}
+            placeholder="Your name"
+            value={displayName}
+            onChange={e => setDisplayName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            autoFocus
           />
         </div>
 
-        {/* Role selector */}
-        <div style={styles.field}>
-          <label style={styles.label}>YOUR ROLE</label>
-          <div style={styles.roleGrid}>
-            {ROLES.map(r => (
-              <button
-                key={r.id}
-                onClick={() => setRole(r.id)}
-                style={{
-                  ...styles.roleBtn,
-                  borderColor: role === r.id ? ROLE_COLOR[r.id] : 'var(--border)',
-                  background:  role === r.id ? `${ROLE_COLOR[r.id]}15` : 'var(--surface-2)',
-                  color:       role === r.id ? ROLE_COLOR[r.id] : 'var(--text-muted)',
-                }}
-              >
-                <span style={styles.roleIcon}>{r.icon}</span>
-                <span style={styles.roleLabel}>{r.label}</span>
-                <span style={styles.roleDesc}>{r.desc}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        {(roomId || roomFromUrl) && (
+          <ShareMeetLink roomId={roomId || roomFromUrl} />
+        )}
 
-        {/* Error */}
         {error && <p style={styles.error}>{error}</p>}
 
-        {/* Join button */}
         <button
-          onClick={handleJoin}
-          disabled={busy}
+          type="button"
+          onClick={handleSubmit}
+          disabled={!canSubmit}
           style={{
-            ...styles.joinBtn,
-            background:  busy ? 'var(--surface-2)' : ROLE_COLOR[role],
-            color:       busy ? 'var(--text-muted)' : '#000',
-            cursor:      busy ? 'not-allowed' : 'pointer',
+            ...styles.primaryBtn,
+            background: canSubmit ? 'var(--accent)' : 'var(--surface-2)',
+            color: canSubmit ? '#000' : 'var(--text-muted)',
+            cursor: canSubmit ? 'pointer' : 'not-allowed',
           }}
         >
           {busy
-            ? (sessionState === SESSION_STATE.CREATING ? 'Creating room…' : 'Connecting…')
-            : `Join as ${role.charAt(0).toUpperCase() + role.slice(1)}`
-          }
+            ? (sessionState === SESSION_STATE.CREATING ? 'Starting…' : 'Joining…')
+            : isInvite
+              ? 'Join meeting'
+              : 'Start'}
         </button>
 
-        <p style={styles.hint}>
-          Open this page in 3 tabs — join as each role to simulate a full session.
-        </p>
+        {!isInvite && !roomId && (
+          <p style={styles.footerHint}>
+            After you start, copy the meet link and send it to others so they can join.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -138,25 +125,18 @@ const styles = {
     gap: 24,
     boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
   },
-  header: {
-    textAlign: 'center',
-  },
+  header: { textAlign: 'center' },
   logo: {
     fontFamily: 'var(--font-display)',
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: 800,
     color: 'var(--text)',
     letterSpacing: '-0.02em',
   },
-  logoAccent: {
-    color: 'var(--doctor)',
-  },
   tagline: {
-    fontFamily: 'var(--font-body)',
-    fontSize: 12,
+    fontSize: 13,
     color: 'var(--text-muted)',
-    marginTop: 6,
-    letterSpacing: '0.06em',
+    marginTop: 8,
   },
   field: {
     display: 'flex',
@@ -176,40 +156,9 @@ const styles = {
     borderRadius: 'var(--radius)',
     color: 'var(--text)',
     fontFamily: 'var(--font-body)',
-    fontSize: 14,
-    padding: '10px 14px',
+    fontSize: 15,
+    padding: '12px 14px',
     outline: 'none',
-    transition: 'border-color 0.15s',
-  },
-  roleGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: 8,
-  },
-  roleBtn: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 4,
-    padding: '14px 8px',
-    border: '1px solid',
-    borderRadius: 'var(--radius)',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-    fontFamily: 'var(--font-body)',
-  },
-  roleIcon: {
-    fontSize: 22,
-  },
-  roleLabel: {
-    fontSize: 12,
-    fontWeight: 500,
-    fontFamily: 'var(--font-display)',
-    letterSpacing: '0.04em',
-  },
-  roleDesc: {
-    fontSize: 10,
-    opacity: 0.6,
   },
   error: {
     background: '#ff4d6a15',
@@ -218,23 +167,19 @@ const styles = {
     color: 'var(--danger)',
     fontSize: 12,
     padding: '10px 14px',
-    fontFamily: 'var(--font-body)',
   },
-  joinBtn: {
+  primaryBtn: {
     border: 'none',
     borderRadius: 'var(--radius)',
     fontFamily: 'var(--font-display)',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 700,
-    letterSpacing: '0.04em',
     padding: '14px',
-    transition: 'all 0.15s',
   },
-  hint: {
+  footerHint: {
     textAlign: 'center',
     fontSize: 11,
     color: 'var(--text-dim)',
-    fontFamily: 'var(--font-body)',
     lineHeight: 1.6,
   },
 };

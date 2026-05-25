@@ -1,11 +1,5 @@
 /**
- * MeetingRoom.jsx
- * Active meeting view — LiveKit room + role overlays + controls.
- *
- * Layout:
- *   [SessionControls bar — top]
- *   [VideoConference — fills remaining height]
- *   [RoleOverlay — fixed top-right]
+ * MeetingRoom.jsx — LiveKit room + controls + participant list.
  */
 
 import {
@@ -22,20 +16,14 @@ export default function MeetingRoom({
   token,
   wsUrl,
   sessionId,
-  role,
-  recording,
-  onStartRecording,
-  onStopRecording,
+  displayName,
   onLeave,
 }) {
   return (
     <>
       <SessionControls
         sessionId={sessionId}
-        role={role}
-        recording={recording}
-        onStartRecording={onStartRecording}
-        onStopRecording={onStopRecording}
+        displayName={displayName}
         onLeave={onLeave}
       />
 
@@ -48,7 +36,7 @@ export default function MeetingRoom({
         onDisconnected={onLeave}
         style={{
           height: '100vh',
-          paddingTop: 52,   // offset for the controls bar
+          paddingTop: 52,
           background: 'var(--bg)',
         }}
       >
