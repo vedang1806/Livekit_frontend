@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { SESSION_STATE } from '../hooks/useSession';
 import { getRoomFromUrl, setRoomInUrl } from '../utils/meetLink';
 import ShareMeetLink from './ShareMeetLink';
+import RoleSelector from './RoleSelector';
 
 function makeSessionId() {
   return `meet_${Date.now().toString(36)}`;
@@ -16,6 +17,7 @@ export default function JoinScreen({ sessionState, error, onJoin }) {
   const isInvite = Boolean(roomFromUrl);
 
   const [displayName, setDisplayName] = useState('');
+  const [role, setRole] = useState('patient');
   const [roomId, setRoomId] = useState(roomFromUrl);
 
   const busy = sessionState === SESSION_STATE.CREATING || sessionState === SESSION_STATE.JOINING;
@@ -29,7 +31,7 @@ export default function JoinScreen({ sessionState, error, onJoin }) {
       setRoomId(sid);
       setRoomInUrl(sid);
     }
-    onJoin(sid, name);
+    onJoin(sid, name, role);
   }
 
   return (
@@ -56,6 +58,8 @@ export default function JoinScreen({ sessionState, error, onJoin }) {
             autoFocus
           />
         </div>
+
+        <RoleSelector value={role} onChange={setRole} variant="inline" />
 
         {(roomId || roomFromUrl) && (
           <ShareMeetLink roomId={roomId || roomFromUrl} />

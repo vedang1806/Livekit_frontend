@@ -40,19 +40,18 @@ export function useSession() {
     return `sess_${Date.now().toString(36)}`;
   }
 
-  function slugIdentity(name) {
+  function slugIdentity(name, roleId) {
     const base = name.trim().replace(/\s+/g, '_').replace(/[^\w-]/gi, '') || 'guest';
-    return `${base}_${Date.now().toString(36)}`;
+    return `${roleId}_${base}_${Date.now().toString(36)}`;
   }
 
   /** Create room + mint token + connect. */
-  const join = useCallback(async (sessionIdInput, nameInput) => {
+  const join = useCallback(async (sessionIdInput, nameInput, roleInput) => {
     setError(null);
     const sid = sessionIdInput || makeSessionId();
     const name = (nameInput || displayName || 'Guest').trim();
-    // Backend requires doctor | patient | interpreter; UI uses display name only.
-    const rid = 'patient';
-    const iid = slugIdentity(name);
+    const rid = roleInput || role;
+    const iid = slugIdentity(name, rid);
 
     console.log(`[Session] JOIN initiated: session=${sid}, name=${name}, identity=${iid}`);
 
@@ -85,7 +84,7 @@ export function useSession() {
       setError(e.message);
       setState(SESSION_STATE.IDLE);
     }
-  }, [displayName]);
+  }, [displayName, role]);
 
   /** Start composite egress recording. */
   const startRecording = useCallback(async () => {

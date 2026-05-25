@@ -1,22 +1,22 @@
 /**
- * MeetingRoom.jsx — LiveKit room + controls + participant list.
+ * MeetingRoom.jsx — LiveKit room with role-based video layout.
  */
 
 import {
   LiveKitRoom,
-  VideoConference,
   RoomAudioRenderer,
 } from '@livekit/components-react';
 import '@livekit/components-styles';
 
 import SessionControls from './SessionControls';
-import RoleOverlay     from './RoleOverlay';
+import RoleVideoConference from './RoleVideoConference';
 
 export default function MeetingRoom({
   token,
   wsUrl,
   sessionId,
   displayName,
+  role,
   onLeave,
 }) {
   return (
@@ -24,6 +24,7 @@ export default function MeetingRoom({
       <SessionControls
         sessionId={sessionId}
         displayName={displayName}
+        role={role}
         onLeave={onLeave}
       />
 
@@ -40,9 +41,8 @@ export default function MeetingRoom({
           background: 'var(--bg)',
         }}
       >
-        <VideoConference />
+        <RoleVideoConference />
         <RoomAudioRenderer />
-        <RoleOverlay />
       </LiveKitRoom>
     </>
   );

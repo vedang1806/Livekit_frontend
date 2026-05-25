@@ -12,7 +12,7 @@ import EndedScreen   from './components/EndedScreen';
 export default function App() {
   const {
     state, error,
-    sessionId, displayName,
+    sessionId, displayName, role,
     token, wsUrl,
     recordingUrl, participantRecordings,
     join, leave,
@@ -33,7 +33,7 @@ export default function App() {
       <JoinScreen
         sessionState={state}
         error={error}
-        onJoin={(sid, name) => join(sid, name)}
+        onJoin={(sid, name, role) => join(sid, name, role)}
       />
     );
   }
@@ -45,6 +45,7 @@ export default function App() {
         wsUrl={wsUrl}
         sessionId={sessionId}
         displayName={displayName}
+        role={role}
         onLeave={leave}
       />
     );

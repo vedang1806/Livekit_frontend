@@ -3,18 +3,28 @@
  */
 
 import ShareMeetLink from './ShareMeetLink';
+import { ROLE_COLOR } from '../constants/roles';
 
 export default function SessionControls({
   sessionId,
   displayName,
+  role,
   onLeave,
 }) {
+  const roleColor = ROLE_COLOR[role] || 'var(--text-muted)';
   return (
     <div style={styles.bar}>
       <div style={styles.left}>
         <span style={styles.youLabel}>YOU</span>
         <span style={styles.name}>{displayName || 'Guest'}</span>
-        <span style={styles.roomLabel}>· {sessionId}</span>
+        <span style={{
+          ...styles.roleBadge,
+          color: roleColor,
+          borderColor: `${roleColor}44`,
+          background: `${roleColor}12`,
+        }}>
+          {role?.toUpperCase()}
+        </span>
       </div>
 
       <div style={styles.right}>
@@ -64,13 +74,15 @@ const styles = {
     color: 'var(--accent)',
     flexShrink: 0,
   },
-  roomLabel: {
-    fontFamily: 'var(--font-body)',
-    fontSize: 11,
-    color: 'var(--text-dim)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+  roleBadge: {
+    fontFamily: 'var(--font-display)',
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    padding: '3px 8px',
+    border: '1px solid',
+    borderRadius: 4,
+    flexShrink: 0,
   },
   right: {
     display: 'flex',
