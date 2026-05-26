@@ -101,17 +101,32 @@ export function listenForEgressEnded(sessionId, onEgressEnded) {
       const data = JSON.parse(event.data);
       console.log(`[API] Egress event:`, data);
 
-      if (data.status === 'ended' || data.status === 'ready') {
-        console.log(`[API] Egress job completed: ${data.status}`);
+      // Handle various event types
+      if (data.event === 'connected') {
+        console.log(`[API] SSE connected, awaiting egress completion`);
+        return;
+      }
+
+      if (data.event === 'keepalive') {
+        // Heartbeat — ignore
+        return;
+      }
+
+      if (data.event === 'egress_ended' && data.success) {
+        console.log(`[API] Egress job completed successfully`);
         eventSource.close();
         if (onEgressEnded) onEgressEnded(data);
+      } else if (data.event === 'egress_ended' && !data.success) {
+        console.warn(`[API] Egress job failed or was aborted`);
+        eventSource.close();
+        if (onEgressEnded) onEgressEnded({ ...data, success: false });
       }
     } catch (e) {
       console.error(`[API] Failed to parse egress event:`, e.message);
     }
   };
 
-  eventSource.addEventListener('egress_update', handleMessage);
+  eventSource.onmessage = handleMessage;
   eventSource.onerror = () => {
     console.warn(`[API] EventSource error, closing listener`);
     eventSource.close();
